@@ -139,7 +139,7 @@ def main():
         
         stop_button = st.button("إيقاف")
         
-        cap = cv2.VideoCapture(0)
+        cap = webrtc_streamer 
         
         try:
             while cap.isOpened() and not stop_button:
