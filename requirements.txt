@@ -1,11 +1,5 @@
-streamlit-webrtc
-opencv-contrib-python-headless
-numpy
-mediapipe
-tensorflow
-pillow
+streamlit
 opencv-python-headless
-opencv-python-headless==4.5.5.62
 mediapipe
 tensorflow
 pillow
