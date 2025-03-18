@@ -153,7 +153,9 @@ def main():
         
         webrtc_streamer(
             key="camera",
-            video_transformer_factory=VideoProcessor
+            video_transformer_factory=VideoProcessor,
+            media_stream_constraints={"video": {"frameRate": {"ideal": 15, "max": 30}}},
+            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
         )
 
 # تشغيل التطبيق
