@@ -8,7 +8,22 @@ import tensorflow as tf
 from PIL import Image, ImageFont, ImageDraw
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import av
+import streamlit as st
+from streamlit_webrtc import webrtc_streamer  # إضافة هذه السطر
 
+# باقي الأكواد الأخرى مثل تحميل النموذج MediaPipe و tensorflow
+
+# قم بإضافة هذه الوظيفة بعد تهيئة الكاميرا أو بعد الكود المتعلق بالواجهة
+def main():
+    st.title("نظام التعرف على لغة الإشارة للصم والبكم")
+    
+    # استخدام streamlit-webrtc لالتقاط الفيديو
+    webrtc_streamer(key="camera")  # إضافة هذا السطر لتشغيل الكاميرا
+    
+    # باقي الكود مثل تصنيف الإشارة والمعالجة
+
+if __name__ == "__main__":
+    main()
 # تحميل نموذج تعلم الآلة
 @st.cache_resource
 def load_model():
