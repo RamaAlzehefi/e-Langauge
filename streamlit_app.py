@@ -146,11 +146,15 @@ def main():
         st.write("اضغط على زر الإيقاف لإنهاء العرض")
         
         webrtc_streamer(
-            key="camera",
-            video_transformer_factory=VideoProcessor,
-            media_stream_constraints={"video": {"frameRate": {"ideal": 15, "max": 30}}},
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-        )
+    key="camera",
+    video_transformer_factory=VideoProcessor,
+    media_stream_constraints={"video": True, "audio": False},
+    rtc_configuration={
+        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}],
+        "iceTransportPolicy": "relay",
+    },
+)
+
 
 # تشغيل التطبيق
 if __name__ == "__main__":
