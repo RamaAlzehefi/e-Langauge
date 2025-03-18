@@ -102,4 +102,4 @@ class VideoProcessor(VideoTransformerBase):
         gesture, hand_landmarks, confidence = classify_gesture(img)
         
         # رسم معالم اليد إذا تم اكتشافها
-        if hand_landmarks
+        if hand_landmarks:
