@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+os.system("pip install opencv-python-headless")
 import cv2
 import mediapipe as mp
 import numpy as np
