@@ -4,3 +4,4 @@ numpy
 mediapipe
 tensorflow
 pillow
+opencv-python-headless
