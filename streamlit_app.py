@@ -102,9 +102,60 @@ class VideoProcessor(VideoTransformerBase):
         gesture, hand_landmarks, confidence = classify_gesture(img)
         
         # رسم معالم اليد إذا تم اكتشافها
-       if hand_landmarks:
-    for landmarks in hand_landmarks:
-        mp.solutions.drawing_utils.draw_landmarks(
-            img, landmarks, mp_hands.HAND_CONNECTIONS
+        if hand_landmarks:
+            for landmarks in hand_landmarks:
+                mp.solutions.drawing_utils.draw_landmarks(
+                    img, landmarks, mp_hands.HAND_CONNECTIONS)
+        
+        # إضافة النص على الشاشة
+        if gesture:
+            img = draw_text_with_arabic(img, f"الإشارة: {gesture}", (img.shape[1] // 2, 50), font_size=48)
+        
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+# الدالة الرئيسية للتطبيق
+def main():
+    st.title("نظام التعرف على لغة الإشارة للصم والبكم")
+    
+    # اختيار مصدر الإدخال
+    input_source = st.radio("اختر مصدر الإدخال:", ["كاميرا الويب", "تحميل صورة"])
+    
+    # معالجة الصور المرفوعة
+    if input_source == "تحميل صورة":
+        uploaded_file = st.file_uploader("اختر صورة من جهازك", type=['jpg', 'jpeg', 'png'])
+        
+        if uploaded_file is not None:
+            image_bytes = uploaded_file.read()
+            frame = process_uploaded_image(image_bytes)
+            gesture, hand_landmarks, confidence = classify_gesture(frame)
+            
+            # رسم المعالم إذا تم اكتشاف يد
+            if hand_landmarks:
+                for landmarks in hand_landmarks:
+                    mp.solutions.drawing_utils.draw_landmarks(
+                        frame, landmarks, mp_hands.HAND_CONNECTIONS)
+            
+            # إضافة النص على الصورة
+            if gesture:
+                frame = draw_text_with_arabic(frame, f"الإشارة: {gesture}", (frame.shape[1] // 2, 50), font_size=48)
+                st.write(f"الإشارة المكتشفة: {gesture}")
+                if confidence:
+                    st.write(f"نسبة الثقة: {confidence:.2%}")
+            else:
+                st.write("لم يتم الكشف عن أي إشارة")
+            
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            st.image(frame_rgb, caption="الصورة المعالجة", use_column_width=True)
+    
+    # تشغيل الكاميرا باستخدام WebRTC
+    else:
+        st.write("اضغط على زر الإيقاف لإنهاء العرض")
+        
+        webrtc_streamer(
+            key="camera",
+            video_transformer_factory=VideoProcessor
         )
 
+# تشغيل التطبيق
+if __name__ == "__main__":
+    main()
