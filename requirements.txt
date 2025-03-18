@@ -5,3 +5,4 @@ numpy
 tensorflow
 pillow
 opencv-python-headless
+streamlit-webrtc
