@@ -102,4 +102,9 @@ class VideoProcessor(VideoTransformerBase):
         gesture, hand_landmarks, confidence = classify_gesture(img)
         
         # رسم معالم اليد إذا تم اكتشافها
-        if hand_landmarks:
+       if hand_landmarks:
+    for landmarks in hand_landmarks:
+        mp.solutions.drawing_utils.draw_landmarks(
+            img, landmarks, mp_hands.HAND_CONNECTIONS
+        )
+
