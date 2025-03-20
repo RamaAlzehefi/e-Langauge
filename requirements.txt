@@ -1,6 +1,9 @@
 streamlit
-opencv-python-headless
+opencv-python
 mediapipe
+numpy
 tensorflow
 pillow
 streamlit-webrtc
+av
+ffmpeg
