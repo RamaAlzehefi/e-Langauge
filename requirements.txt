@@ -6,3 +6,4 @@ tensorflow
 pillow
 streamlit-webrtc
 av
+ffmpeg
