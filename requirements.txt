@@ -5,4 +5,4 @@ numpy
 tensorflow
 pillow
 streamlit-webrtc
-ffmpeg-python
+av
