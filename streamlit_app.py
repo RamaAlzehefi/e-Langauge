@@ -6,7 +6,6 @@ import tensorflow as tf
 from PIL import Image, ImageFont, ImageDraw
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import av
-import os
 
 # Load model
 @st.cache_resource
@@ -20,10 +19,9 @@ mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
     static_image_mode=False,
     max_num_hands=2,
-    min_detection_confidence=0.3  # Lowered threshold for better detection
+    min_detection_confidence=0.3
 )
 
-# List of gesture class names
 sign_language_classes = [
     "", "", "", "", "", "", "", "", "", "", "", "", "", "", "عذرًا",
     "", "طعام", "", "", "مرحبًا", "مساعدة", "منزل", "أنا", "أحبك", "", "", "",
@@ -31,8 +29,7 @@ sign_language_classes = [
     "", "", "نعم", ""
 ]
 
-# Utility Functions
-
+# Utility functions
 def process_landmarks(hand_landmarks):
     return [coord for lm in hand_landmarks.landmark for coord in (lm.x, lm.y, lm.z)]
 
@@ -42,10 +39,10 @@ def pad_landmarks():
 def classify_gesture(frame):
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = hands.process(rgb)
-
-    print("🖐️ Hand detection result:", result.multi_hand_landmarks)
+    print("👀 classify_gesture running...")
 
     if result.multi_hand_landmarks:
+        print("🖐️ Hand landmarks detected.")
         landmarks = process_landmarks(result.multi_hand_landmarks[0])
         if len(result.multi_hand_landmarks) > 1:
             landmarks += process_landmarks(result.multi_hand_landmarks[1])
@@ -57,7 +54,7 @@ def classify_gesture(frame):
         gesture = sign_language_classes[class_id]
         confidence = prediction[0][class_id]
 
-        print(f"✅ Gesture Detected: {gesture}, Confidence: {confidence:.2%}")
+        print(f"🎯 Prediction: {gesture} | Confidence: {confidence:.2%}")
         return gesture, result.multi_hand_landmarks, confidence
 
     print("❌ No hand landmarks detected.")
@@ -70,7 +67,7 @@ def draw_text_with_arabic(frame, text, position, font_path="arial.ttf", font_siz
         font = ImageFont.truetype(font_path, font_size)
     except OSError:
         font = ImageFont.load_default()
-        print("⚠️ Font file not found. Using default font.")
+        print("⚠️ arial.ttf not found. Using default font.")
 
     bbox = draw.textbbox((0, 0), text, font=font)
     pos = (position[0] - (bbox[2] - bbox[0]) // 2, position[1] - (bbox[3] - bbox[1]) // 2)
@@ -80,19 +77,23 @@ def draw_text_with_arabic(frame, text, position, font_path="arial.ttf", font_siz
 def process_uploaded_image(image_bytes):
     return cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
 
-# Webcam Video Processor
+# 🔧 Updated Video Processor
 class VideoProcessor(VideoTransformerBase):
-    def transform(self, frame):
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
+        print("📸 Frame received for processing")
+
         gesture, landmarks, conf = classify_gesture(img)
+
         if landmarks:
             for lm in landmarks:
                 mp.solutions.drawing_utils.draw_landmarks(img, lm, mp_hands.HAND_CONNECTIONS)
         if gesture:
             img = draw_text_with_arabic(img, f"الإشارة: {gesture}", (img.shape[1] // 2, 50))
+
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# Streamlit Interface
+# UI
 def main():
     st.title("نظام التعرف على لغة الإشارة للصم والبكم")
     source = st.radio("اختر مصدر الإدخال:", ["كاميرا الويب", "تحميل صورة"])
@@ -114,7 +115,7 @@ def main():
             st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), caption="الصورة المعالجة", use_column_width=True)
     else:
         st.write("اضغط على زر الإيقاف لإنهاء العرض")
-        webrtc_streamer(key="camera", video_transformer_factory=VideoProcessor)
+        webrtc_streamer(key="camera", video_processor_factory=VideoProcessor)  # ✅ updated argument
 
 if __name__ == "__main__":
     main()
