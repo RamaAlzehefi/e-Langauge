@@ -4,25 +4,29 @@ import mediapipe as mp
 import numpy as np
 import tensorflow as tf
 from PIL import Image, ImageFont, ImageDraw
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
-import av
 
-# Load model
+# Initialize session state
+if 'stop_button' not in st.session_state:
+    st.session_state['stop_button'] = False
+if 'camera_running' not in st.session_state:
+    st.session_state['camera_running'] = True
+
+# Cache model loading
 @st.cache_resource
 def load_model():
     return tf.keras.models.load_model("sign_language_model.h5")
 
 model = load_model()
 
-# Setup MediaPipe
+# Initialize MediaPipe
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
     static_image_mode=False,
     max_num_hands=2,
-    min_detection_confidence=0.3
+    min_detection_confidence=0.5
 )
 
-# Arabic sign class labels (adjust to your model's actual output size!)
+# Define class names
 sign_language_classes = [
     "", "", "", "", "", "", "", "", "", "", "", "", "", "", "عذرًا",
     "", "طعام", "", "", "مرحبًا", "مساعدة", "منزل", "أنا", "أحبك", "", "", "",
@@ -30,102 +34,139 @@ sign_language_classes = [
     "", "", "نعم", ""
 ]
 
-# Helpers
+# Function to process landmarks
 def process_landmarks(hand_landmarks):
-    return [coord for lm in hand_landmarks.landmark for coord in (lm.x, lm.y, lm.z)]
+    landmarks = []
+    for lm in hand_landmarks.landmark:
+        landmarks.extend([lm.x, lm.y, lm.z])
+    return landmarks
 
+# Function to pad landmarks
 def pad_landmarks():
     return [0.0] * 63
 
+# Function to classify gestures
 def classify_gesture(frame):
-    print("👀 classify_gesture() called...")
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = hands.process(rgb)
-
+    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    result = hands.process(image_rgb)
+    
     if result.multi_hand_landmarks:
-        print("🖐️ Hand detected.")
-        landmarks = process_landmarks(result.multi_hand_landmarks[0])
+        combined_landmarks = []
+        
+        # Process first hand
+        combined_landmarks.extend(process_landmarks(result.multi_hand_landmarks[0]))
+        
+        # Process second hand or pad
         if len(result.multi_hand_landmarks) > 1:
-            landmarks += process_landmarks(result.multi_hand_landmarks[1])
+            combined_landmarks.extend(process_landmarks(result.multi_hand_landmarks[1]))
         else:
-            landmarks += pad_landmarks()
-
-        prediction = model.predict(np.array(landmarks).reshape(1, -1), verbose=0)
+            combined_landmarks.extend(pad_landmarks())
+            
+        # Make prediction
+        landmarks_array = np.array(combined_landmarks).reshape(1, -1)
+        prediction = model.predict(landmarks_array, verbose=0)
         class_id = np.argmax(prediction[0])
-        gesture = sign_language_classes[class_id]
         confidence = prediction[0][class_id]
-
-        print(f"🎯 Prediction: {gesture} | Confidence: {confidence:.2%}")
-        return gesture, result.multi_hand_landmarks, confidence
-
-    print("❌ No hands detected.")
+        
+        return sign_language_classes[class_id], result.multi_hand_landmarks, confidence
+    
     return None, None, None
 
+# Function to draw Arabic text using Pillow with enhanced formatting
 def draw_text_with_arabic(frame, text, position, font_path="arial.ttf", font_size=48, color=(0, 255, 0)):
-    img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(img_pil)
-    try:
-        font = ImageFont.truetype(font_path, font_size)
-    except OSError:
-        font = ImageFont.load_default()
-        print("⚠️ arial.ttf not found. Using default font.")
+    # Convert the frame to a Pillow image
+    frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(frame_pil)
+    
+    # Load a font that supports Arabic
+    font = ImageFont.truetype(font_path, font_size)
+    
+    # Calculate the text dimensions using textbbox
+    text_bbox = draw.textbbox((0, 0), text, font=font)
+    text_width, text_height = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
+    
+    # Adjust the position to center the text
+    position = (position[0] - text_width // 2, position[1] - text_height // 2)
+    
+    # Draw the Arabic text
+    draw.text(position, text, font=font, fill=color)
+    
+    # Convert the image back to OpenCV format
+    return cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
 
-    bbox = draw.textbbox((0, 0), text, font=font)
-    pos = (position[0] - (bbox[2] - bbox[0]) // 2, position[1] - (bbox[3] - bbox[1]) // 2)
-    draw.text(pos, text, font=font, fill=color)
-    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-
+# Function to process uploaded image
 def process_uploaded_image(image_bytes):
-    return cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    return frame
 
-# 🔧 Video processor with debug logs
-class VideoProcessor(VideoTransformerBase):
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        print("📸 recv() called")
-        try:
-            img = frame.to_ndarray(format="bgr24")
-            print("✅ Frame converted")
-
-            gesture, landmarks, conf = classify_gesture(img)
-            print("🧠 classify_gesture result:", gesture, conf)
-
-            if landmarks:
-                for lm in landmarks:
-                    mp.solutions.drawing_utils.draw_landmarks(img, lm, mp_hands.HAND_CONNECTIONS)
-
-            if gesture:
-                print(f"🎯 Showing gesture: {gesture}")
-                img = draw_text_with_arabic(img, f"الإشارة: {gesture}", (img.shape[1] // 2, 50))
-
-            return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-        except Exception as e:
-            print("❌ Error in recv():", e)
-            return frame
-
-# 🖥️ Streamlit interface
+# Main function
 def main():
     st.title("نظام التعرف على لغة الإشارة للصم والبكم")
-    source = st.radio("اختر مصدر الإدخال:", ["كاميرا الويب", "تحميل صورة"])
-
-    if source == "تحميل صورة":
-        file = st.file_uploader("اختر صورة", type=['jpg', 'jpeg', 'png'])
-        if file:
-            img = process_uploaded_image(file.read())
-            gesture, landmarks, conf = classify_gesture(img)
-            if landmarks:
-                for lm in landmarks:
-                    mp.solutions.drawing_utils.draw_landmarks(img, lm, mp_hands.HAND_CONNECTIONS)
+    
+    # Input source selection
+    input_source = st.radio("اختر مصدر الإدخال:", ["كاميرا الويب", "تحميل صورة"])
+    
+    if input_source == "تحميل صورة":
+        uploaded_file = st.file_uploader("اختر صورة من جهازك", type=['jpg', 'jpeg', 'png'])
+        
+        if uploaded_file is not None:
+            image_bytes = uploaded_file.read()
+            frame = process_uploaded_image(image_bytes)
+            gesture, hand_landmarks, confidence = classify_gesture(frame)
+            
+            if hand_landmarks:
+                for landmarks in hand_landmarks:
+                    mp.solutions.drawing_utils.draw_landmarks(
+                        frame, landmarks, mp_hands.HAND_CONNECTIONS)
+            
             if gesture:
-                img = draw_text_with_arabic(img, f"الإشارة: {gesture}", (img.shape[1] // 2, 50))
+                frame = draw_text_with_arabic(frame, f"الإشارة: {gesture}", (frame.shape[1] // 2, 50), font_size=48)
                 st.write(f"الإشارة المكتشفة: {gesture}")
-                st.write(f"نسبة الثقة: {conf:.2%}")
+                if confidence:
+                    st.write(f"نسبة الثقة: {confidence:.2%}")
             else:
                 st.write("لم يتم الكشف عن أي إشارة")
-            st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), caption="الصورة المعالجة", use_column_width=True)
-    else:
+            
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            st.image(frame_rgb, caption="الصورة المعالجة", use_column_width=True)
+    
+    else:  # Webcam
         st.write("اضغط على زر الإيقاف لإنهاء العرض")
-        webrtc_streamer(key="camera", video_processor_factory=VideoProcessor)
+        video_placeholder = st.empty()
+        prediction_placeholder = st.empty()
+        confidence_placeholder = st.empty()
+        
+        stop_button = st.button("إيقاف")
+        
+        cap = cv2.VideoCapture(0)
+        
+        try:
+            while cap.isOpened() and not stop_button:
+                ret, frame = cap.read()
+                if not ret:
+                    st.error("فشل في تشغيل كاميرا الويب")
+                    break
+
+                gesture, hand_landmarks, confidence = classify_gesture(frame)
+
+                if hand_landmarks:
+                    for landmarks in hand_landmarks:
+                        mp.solutions.drawing_utils.draw_landmarks(
+                            frame, landmarks, mp_hands.HAND_CONNECTIONS)
+
+                if gesture:
+                    frame = draw_text_with_arabic(frame, f"الإشارة: {gesture}", (frame.shape[1] // 2, 50), font_size=48)
+                    prediction_placeholder.text(f"الإشارة المكتشفة: {gesture}")
+                    if confidence:
+                        confidence_placeholder.write(f"نسبة الثقة: {confidence:.2%}")
+
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                video_placeholder.image(frame_rgb, channels="RGB", use_column_width=True)
+
+        finally:
+            cap.release()
+            st.session_state['camera_running'] = False
 
 if __name__ == "__main__":
     main()
