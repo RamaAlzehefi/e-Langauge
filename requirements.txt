@@ -2,6 +2,7 @@ streamlit
 opencv-python
 mediapipe
 tensorflow
-Pillow
+pillow
 arabic-reshaper
 python-bidi
+streamlit-webrtc
