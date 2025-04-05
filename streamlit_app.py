@@ -2,7 +2,7 @@ import streamlit as st
 import cv2
 import mediapipe as mp
 import numpy as np
-import tensorflow as tf
+import tflite_runtime.interpreter as tflite
 from PIL import Image, ImageDraw, ImageFont
 import arabic_reshaper
 from bidi.algorithm import get_display
