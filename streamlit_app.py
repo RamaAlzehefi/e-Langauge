@@ -12,7 +12,9 @@ import av
 # Load the trained model
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model("sign_language_model.h5")
+    interpreter = tflite.Interpreter(model_path="sign_language_model.tflite")
+    interpreter.allocate_tensors()
+    return interpreter
 
 model = load_model()
 
