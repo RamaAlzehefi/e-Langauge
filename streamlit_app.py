@@ -2,21 +2,25 @@ import streamlit as st
 import cv2
 import mediapipe as mp
 import numpy as np
-import tflite_runtime.interpreter as tflite
 from PIL import Image, ImageDraw, ImageFont
 import arabic_reshaper
 from bidi.algorithm import get_display
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 import av
+import tflite_runtime.interpreter as tflite
 
-# Load the trained model
+# Load the TFLite model
 @st.cache_resource
 def load_model():
     interpreter = tflite.Interpreter(model_path="sign_language_model.tflite")
     interpreter.allocate_tensors()
     return interpreter
 
-model = load_model()
+interpreter = load_model()
+
+# Get input and output details from the TFLite model
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
 # Setup MediaPipe Hands
 mp_hands = mp.solutions.hands
@@ -26,7 +30,7 @@ hands = mp_hands.Hands(
     min_detection_confidence=0.5
 )
 
-# Arabic class names (adjust to your trained labels)
+# Arabic class names (adjust these as needed)
 sign_language_classes = [
     "", "", "", "", "", "", "", "", "", "", "", "", "", "", "عذرًا",
     "", "طعام", "", "", "مرحبًا", "مساعدة", "منزل", "أنا", "أحبك", "", "", "",
@@ -34,14 +38,14 @@ sign_language_classes = [
     "", "", "نعم", ""
 ]
 
-# Process MediaPipe landmarks to flat list
+# Convert hand landmarks to a flat list
 def process_landmarks(hand_landmarks):
     return [coord for lm in hand_landmarks.landmark for coord in (lm.x, lm.y, lm.z)]
 
 def pad_landmarks():
     return [0.0] * 63
 
-# Gesture classifier
+# Gesture classification using the TFLite model
 def classify_gesture(frame):
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = hands.process(rgb)
@@ -52,13 +56,17 @@ def classify_gesture(frame):
         else:
             landmarks += pad_landmarks()
 
-        prediction = model.predict(np.array(landmarks).reshape(1, -1), verbose=0)
+        input_data = np.array(landmarks, dtype=np.float32).reshape(1, -1)
+        interpreter.set_tensor(input_details[0]['index'], input_data)
+        interpreter.invoke()
+        prediction = interpreter.get_tensor(output_details[0]['index'])
         class_id = np.argmax(prediction[0])
-        return sign_language_classes[class_id], result.multi_hand_landmarks, prediction[0][class_id]
+        confidence = prediction[0][class_id]
+        return sign_language_classes[class_id], result.multi_hand_landmarks, confidence
     return None, None, None
 
-# Draw Arabic text centered
-def draw_text_with_arabic(frame, text, position, font_path="arial.ttf", font_size=48, color=(0, 255, 0)):
+# Draw Arabic text in the image
+def draw_text_with_arabic(frame, text, position, font_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size=48, color=(0, 255, 0)):
     reshaped_text = arabic_reshaper.reshape(text)
     bidi_text = get_display(reshaped_text)
     img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -69,11 +77,11 @@ def draw_text_with_arabic(frame, text, position, font_path="arial.ttf", font_siz
     draw.text(pos, bidi_text, font=font, fill=color)
     return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
-# For uploading images
+# Handle uploaded images
 def process_uploaded_image(image_bytes):
     return cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
 
-# VideoProcessor class for webcam
+# Streamlit WebRTC VideoProcessor
 class VideoProcessor(VideoProcessorBase):
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
@@ -85,7 +93,7 @@ class VideoProcessor(VideoProcessorBase):
             img = draw_text_with_arabic(img, f"الإشارة: {gesture}", (img.shape[1] // 2, 50))
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# Main app logic
+# Main app
 def main():
     st.title("نظام التعرف على لغة الإشارة للصم والبكم")
 
@@ -113,14 +121,7 @@ def main():
         webrtc_streamer(
             key="camera",
             video_processor_factory=VideoProcessor,
-            media_stream_constraints={
-                "video": {
-                    "width": {"ideal": 640},
-                    "height": {"ideal": 480},
-                    "frameRate": {"ideal": 15, "max": 30}
-                },
-                "audio": False
-            }
+            media_stream_constraints={"video": True, "audio": False}
         )
 
 if __name__ == "__main__":
