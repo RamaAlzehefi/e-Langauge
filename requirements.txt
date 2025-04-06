@@ -1,8 +1,7 @@
 streamlit
 opencv-python-headless
 mediapipe
-numpy
-pillow
+Pillow
 arabic-reshaper
 python-bidi
-tflite-runtime==2.14.0
+tensorflow==2.14.0
