@@ -1,7 +1,7 @@
 streamlit
 opencv-python-headless
 mediapipe
-Pillow
+pillow
 arabic-reshaper
 python-bidi
-tensorflow==2.14.0
+tensorflow-cpu
