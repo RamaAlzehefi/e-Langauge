@@ -30,6 +30,7 @@ sign_language_classes = [
 def process_landmarks(hand_landmarks):
     return [coord for lm in hand_landmarks.landmark for coord in (lm.x, lm.y, lm.z)]
 
+# Add padding if second hand not present
 def pad_landmarks():
     return [0.0] * 63
 
@@ -43,7 +44,8 @@ def classify_gesture(frame):
             landmarks += process_landmarks(result.multi_hand_landmarks[1])
         else:
             landmarks += pad_landmarks()
- prediction = model.predict(np.array(landmarks).reshape(1, -1), verbose=0)
+
+        prediction = model.predict(np.array(landmarks).reshape(1, -1), verbose=0)
         class_id = np.argmax(prediction[0])
         confidence = prediction[0][class_id]
         return sign_language_classes[class_id], result.multi_hand_landmarks, confidence
@@ -68,7 +70,7 @@ def draw_text_with_arabic(frame, text, position, font_path="arial.ttf", font_siz
 
 # Main App (Webcam Only)
 def main():
-    st.title(" M-8 Arabic Sign Language Detection – e-Language")
+    st.title("📸 Arabic Sign Language Detection – e-Language")
     st.write("اضغط على زر الإيقاف لإنهاء العرض")
 
     stop_btn = st.button("إيقاف")
@@ -94,4 +96,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
