@@ -5,3 +5,4 @@ pillow
 arabic-reshaper
 python-bidi
 tensorflow-cpu
+streamlit-webrtc
