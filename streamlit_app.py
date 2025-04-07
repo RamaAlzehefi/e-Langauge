@@ -59,7 +59,7 @@ def draw_text_with_arabic(frame, text, position, font_path="arial.ttf", font_siz
     return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
 def main():
-    st.title("📸 Arabic Sign Language Detection – e-Language")
+    st.title("Arabic Sign Language Detection – e-Language")
     st.write("اضغط على زر الإيقاف لإنهاء العرض")
     stop_btn = st.button("إيقاف")
     placeholder = st.empty()
